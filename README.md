@@ -1,6 +1,6 @@
 # STAT184
 
-Final Project from Introduction to R
+Final Project from Introduction to R (December 2021)
 
 Created using RStudio, this project takes two datasets regarding mental health and compares them using R.
 
