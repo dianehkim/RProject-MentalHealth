@@ -1,0 +1,263 @@
+---
+title: 'Final Project Report'
+author: "Damin Park, Diane Kim"
+date: "12/15/21"
+output: html_notebook
+---
+
+### Front Matter
+```{r}
+# clean up the RStudio environment 
+rm(list = ls())
+
+# load all packages
+library(tidyverse)
+library(readr)
+library(mosaic)
+```
+
+### Data Access
+
+```{r}
+# import data
+MentalHealthTech <- read.csv("survey.csv")
+Students <- read.csv("mental_health_poll_updated.csv")
+States <- read.csv("states.csv")
+```
+
+## Guiding Question
+How does mental health affect students and people in the workplace?
+
+Data Intake:  
+Using the glimpse function, we can look at the two data sets being Mental Health  
+in Tech provided by Kaggle and Teen Stress & Mental Health Poll on After School  
+provided by data.world. The first is labeled "MentalHealthTech" and the second  
+data set is labeled "Students".  
+
+The distinct function was used to see how many different distinct types of  
+"Question" and "Event.Category" there was in the Students data set.  
+
+```{r}
+MentalHealthTech %>% 
+  glimpse()
+```
+
+```{r}
+Students %>% 
+  glimpse() 
+```
+
+```{r}
+Students %>%
+  distinct(Question, Event.Category)
+```
+
+### Data Wrangling
+```{r}
+names(MentalHealthTech) <- tolower(names(MentalHealthTech))
+names(Students) <- tolower(names(Students))
+names(States) <- tolower(names(States))
+```
+
+##STUDENTS
+
+First, the columns from the students table was renamed for better readability.  
+Rows without states were also removed.  
+```{r}
+Students <-
+  Students %>%
+  rename(answer = event.category) # renaming event.category to answer
+
+Students <-
+  Students[!(Students$region == "(not set)"), ]
+```
+
+Using the mutate function, the responses to the questions were changed from  
+written strings to numbers scaling from zero to three.  
+```{r}
+Students <-
+  Students %>%
+  # changing the answer responses to ratings from All the time to 3
+  mutate(answer = replace(answer, answer == "All the time", 3)) %>%
+  # changing the answer responses to ratings from Sometimes to 2
+  mutate(answer = replace(answer, answer == "Sometimes", 2)) %>%
+  # changing the answer responses to ratings from rarely to 1
+  mutate(answer = replace(answer, answer == "Rarely", 1)) %>%
+  # changing the answer responses to ratings from never to 0
+  mutate(answer = replace(answer, answer == "Never", 0))
+```
+
+For question 1, the answer was changed over to a number and the question itself  
+was taken out.  
+```{r}
+StudentQ1 <-
+  filter(Students, question == "How often are you stressed") %>% 
+  # changing answer to number
+  mutate(answer = as.numeric(answer))
+
+StudentQ1 <-
+  select(StudentQ1, -question)
+```
+
+For student stress by state, the mean of the answers were taken.  
+```{r}
+StudentStressByState <-
+  StudentQ1 %>%
+  group_by(region) %>%
+  # scale 0-3 so making 3, 100 percent to even out the scale
+  summarise(stressLevel = (mean(answer) / 3) * 100) 
+```
+
+```{r}
+StudentQ2 <-
+  filter(Students, question == "What are you most likely to do when you're  
+         stressed")
+
+StudentQ2 <-
+  select(StudentQ2, -question)
+```
+
+Using question 1 from the student data set, the answer percentage was found per  
+region.  
+```{r}
+StudentQ1Summary <-
+  StudentQ1 %>%
+  group_by(region) %>%
+  count(answer) %>%
+  rename(count = n) %>%
+  #finding the answer percentage and then dividing by the total count
+  mutate(answerPercentage = count/sum(as.numeric(count), na.rm = TRUE)) 
+```
+
+
+```{r}
+ggplot(data = StudentQ1Summary, aes(x = answer, y = count)) + geom_point() +  
+  labs(title = "Count of answers to Question 1")
+```
+
+## MENTAL HEALTH TECH
+```{r}
+WorkStress <-
+  #Creates a new data frame called WorkStress from MentalHealthTech
+  MentalHealthTech %>%
+   #answers for further analysis, and unreasonable ages
+  filter(country == "United States", !is.na(state), seek_help != "Don't know",  
+         age <= 100, age > 0) %>%
+  select(-timestamp, -country, -comments)  # Removes unneeded variables
+```
+
+Here, the gender was written very differently, so they were categorized into M,  
+F, and other genders were deleted because there were very little values.  
+```{r}
+WorkStress <-
+  WorkStress %>%
+  #Creates a unified name for "male"
+  mutate(gender = replace(gender,  
+                          gender %in% c("Male-ish", "m", "M", "Cis Male",  
+                                        "male", "Male", "Man", "Male (CIS)",  
+                                        "cis male", "Male "), "M")) %>%
+  #Creates a unified name for "female"
+  mutate(gender = replace(gender,  
+                          gender %in% c("female", "f", "F", "Female (trans)",  
+                                        "Woman", "Female (cis)", "Cis Female",  
+                                        "woman", "Trans-female", "Trans woman",  
+                                        "Female", "Female "), "F")) %>%  
+  filter(gender %in% c("M", "F")) 
+```
+
+```{r}
+# using a for loop and if/else statement to change the range of employees to  
+# minimum employees
+for (i in 1:nrow(WorkStress)) {
+  #Any number of digits separated by a dash
+  if (str_detect(WorkStress[i, "no_employees"], "^[:digit:]+-[:digit:]+$")) { 
+    WorkStress[i, "no_employees"] <- str_remove(WorkStress[i, "no_employees"],  
+                                                "^*(-[:digit:]+)$")
+    #Remove everything after the dash including it
+  } else {
+    #removing everything that's not a number
+    WorkStress[i, "no_employees"] <-
+      str_remove_all(WorkStress[i, "no_employees"], "\\D+")
+  }
+}
+
+WorkStress <-
+  #Rename variable for clarity
+  rename(WorkStress, min_employees = no_employees) %>%
+  #Change variable from character to numeric
+  mutate(min_employees = as.numeric(min_employees))
+  
+```
+
+```{r}
+WorkStress <-
+  WorkStress %>%
+    #Change "Yes" answers to 1
+    mutate(seek_help = replace(seek_help, seek_help == "Yes", 1)) %>%
+    #Change "No" answers to 0
+    mutate(seek_help = replace(seek_help, seek_help == "No", 0)) %>%
+    #Change variable from character to numeric
+    mutate(seek_help = as.numeric(seek_help)) 
+```
+
+```{r}
+#Calculate the averages for each variable by state
+CareProvidedByState <-
+  WorkStress %>%
+  group_by(state) %>%
+  summarise(mentalCareProvided = mean(seek_help) * 100,  
+            avgMinEmployee = mean(min_employees),  
+            avgAge = mean(age, na.rm = TRUE))
+```
+
+```{r}
+# Creates a data frame for employees between ages 20 and 39, inclusive.
+WorkStress2030 <-
+  WorkStress %>%
+  filter(age >= 20 & age < 40)
+```
+
+This graph shows that for females, as age increased, they viewed discussing  
+mental health issues with employers wouldn't have negative consequences, but  
+there is an opposite trend for males.
+```{r}
+WorkStress2030$mental_health_consequence <- 
+  factor(WorkStress2030$mental_health_consequence, levels =  
+           c("No","Maybe", "Yes"), ordered = TRUE)
+# Orders the variable in the order of "No", "Maybe", then "Yes"
+ggplot(data = WorkStress2030, aes(x = mental_health_consequence, y = age)) +  
+  geom_boxplot()  + aes(colour = gender) + theme(legend.position = "right") +  
+  labs(title = "Does discussing mental health issues with employers have negative  
+       consequences?", x = "answer")
+```
+
+## COMBINED
+```{r}
+Combined <-
+  States %>%
+  full_join(StudentStressByState, by = c("state" = "region")) 
+  #Join grouped data frame by state
+
+Combined <-
+  Combined %>%
+  full_join(CareProvidedByState, by = c("abbreviation" = "state"))
+  #Join grouped data frame by state to the same data frame as above
+
+```
+
+As the minimum employee count increase, the mental healthcare provided by tech  
+companies increase. We can see that there is a positive correlation between the  
+two variables.  
+```{r}
+ggplot(data = Combined, aes(x = avgMinEmployee, y = mentalCareProvided)) +  
+  geom_point()  + geom_smooth(method = lm) + theme(legend.position = "right") +  
+  labs(title = "Mental Healthcare Provided by Minimum Employee Count",  
+       x ="Minimum Employee Count", y ="Mental Healthcare Provided")  
+```
+
+This graph shows the stress level of students by state where lighter colors  
+represent higher levels of stress.  
+```{r}
+mUSMap(Combined, key = "state", fill = "stressLevel") +  
+  labs(title = "Stress Level of Students By State", fill = "percentage")
+```
