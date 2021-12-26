@@ -1,9 +1,0 @@
-"0","```r
-# clean up the RStudio environment 
-rm(list = ls())
-
-# load all packages here: `mosaic`, `tidyverse`, `lubridate`, and all others used
-
-
-
-```"
