@@ -1,3 +1,3 @@
 # STAT184
 
-Projects from Introduction to R
+Final Project from Introduction to R
