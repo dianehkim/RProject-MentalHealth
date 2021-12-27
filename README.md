@@ -1,4 +1,4 @@
-# STAT184
+# Data Visualization of Views toward Mental Health 
 
 Final Project from Introduction to R (December 2021)
 
